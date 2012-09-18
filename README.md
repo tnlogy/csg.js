@@ -1,4 +1,8 @@
-# csg.js
+# csg.js + csg.lua
+
+I added a Lua version of this library, which is used with Codea on iPad, so you need the file [Class.lua](https://github.com/TwoLivesLeft/Codea-Runtime/blob/master/CodeaTemplate/Codify/Resources/Lua/Class.lua) to use it outside Codea. Currently unoptimized, including software bit operations, so it is a bit slow.
+
+The file Main.lua showns an example of using the library from within Codea.
 
 ![](http://evanw.github.com/csg.js/image.png)
 
