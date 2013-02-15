@@ -2,7 +2,7 @@ function setup()
     displayMode(FULLSCREEN)    
     a = CSG.cube()
     b = CSG.sphere({radius=1.35, stacks=8})
-    c = CSG.cylinder({radius=0.4, start={-2,0,0}, stop={2,0,0}, slices=8})
+    c = CSG.cylinder({radius=0.4, start=vec3(-2,0,0), stop=vec3(2,0,0), slices=8})
     cs = a:intersect(b):subtract(c):toMesh()    
 end
 

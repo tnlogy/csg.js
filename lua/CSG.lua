@@ -110,10 +110,6 @@ function CSG:toMesh()
         local v = p.vertices[j]
         table.insert(vertices, vec3(v.pos.x, v.pos.y, v.pos.z))
       end
-  --  for j,v in ipairs(p.vertices) do
-  --      table.insert(vertices, vec3(v.pos.x, v.pos.y, v.pos.z))
-  --  end
-
   end
   m.vertices = vertices
   m:setColors(255,0,0,255)
@@ -224,14 +220,14 @@ end
 
 function CSG.cube(options)
   local vs = {
-    {-1, -1, 1},
-    {1, -1, 1},
-    {1, 1, 1},
-    {-1, 1, 1},
-    {-1, -1, -1},
-    {1, -1, -1},
-    {1, 1, -1},
-    {-1, 1, -1}
+    vec3(-1, -1, 1),
+    vec3(1, -1, 1),
+    vec3(1, 1, 1),
+    vec3(-1, 1, 1),
+    vec3(-1, -1, -1),
+    vec3(1, -1, -1),
+    vec3(1, 1, -1),
+    vec3(-1, 1, -1)
   };
 
   local cvs = {
@@ -244,16 +240,16 @@ function CSG.cube(options)
   }
 
   options = options or {}
-  local cen = CSG.Vector(options.center or {0, 0, 0})
-  local r = options.radius or {1, 1, 1}
+  local cen = options.center or vec3(0, 0, 0)
+  local r = options.radius or vec3(1, 1, 1)
   if (type(r) == "number") then
-    r = {r, r, r}
+    r = vec3(r, r, r)
   end
 
   return CSG.fromPolygons(table.map(cvs, function (triangle)
-    local a = CSG.Vector(vs[triangle[1]+1]):plus(cen):times(r[1])
-    local b = CSG.Vector(vs[triangle[2]+1]):plus(cen):times(r[1])
-    local c = CSG.Vector(vs[triangle[3]+1]):plus(cen):times(r[1])
+    local a = (vs[triangle[1]+1]+cen) * r.x
+    local b = (vs[triangle[2]+1]+cen) * r.y
+    local c = (vs[triangle[3]+1]+cen) * r.z
     local p = CSG.Plane.fromPoints(a, b, c)
     return CSG.Polygon({
       CSG.Vertex(a, p.normal),
@@ -279,7 +275,7 @@ end
 
 function CSG.sphere(options)
   options = options or {}
-  local c = CSG.Vector(options.center or {0, 0, 0})
+  local c = options.center or vec3(0, 0, 0)
   local r = options.radius or 1
   local slices = options.slices or 16
   local stacks = options.stacks or 8
@@ -288,12 +284,12 @@ function CSG.sphere(options)
   function vertex(theta, phi)
     theta = theta * math.pi * 2
     phi = phi * math.pi
-    local dir = CSG.Vector(
+    local dir = vec3(
       math.cos(theta) * math.sin(phi),
       math.cos(phi),
       math.sin(theta) * math.sin(phi)
     )
-    table.insert(vertices, CSG.Vertex(c:plus(dir:times(r)), dir))
+    table.insert(vertices, CSG.Vertex((c + dir) * r, dir))
   end
   for i = 0,(slices-1) do 
     for j = 0,(stacks-1) do 
@@ -331,27 +327,27 @@ end
 
 function CSG.cylinder(options)
   options = options or {}
-  local s = CSG.Vector(options.start or {0, -1, 0})
-  local e = CSG.Vector(options.stop or {0, 1, 0})
-  local ray = e:minus(s)
+  local s = options.start or vec3(0, -1, 0)
+  local e = options.stop or vec3(0, 1, 0)
+  local ray = e - s
   local r = options.radius or 1
   local slices = options.slices or 16
-  local axisZ = ray:unit()
+  local axisZ = ray:normalize()
   local axisX
   if (math.abs(axisZ.y) > 0.5) then
-    axisX = CSG.Vector(1, 0, 0):cross(axisZ):unit()
+    axisX = vec3(1, 0, 0):cross(axisZ):normalize()
   else
-    axisX = CSG.Vector(0, 1, 0):cross(axisZ):unit()
+    axisX = vec3(0, 1, 0):cross(axisZ):normalize()
   end
-  local axisY = axisX:cross(axisZ):unit()
-  local start = CSG.Vertex(s, axisZ:negated())
-  local endv = CSG.Vertex(e, axisZ:unit())
+  local axisY = axisX:cross(axisZ):normalize()
+  local start = CSG.Vertex(s, -axisZ)
+  local endv = CSG.Vertex(e, axisZ:normalize())
   local polygons = {}
   function point(stack, slice, normalBlend)
     local angle = slice * math.pi * 2
-    local out = axisX:times(math.cos(angle)):plus(axisY:times(math.sin(angle)))
-    local pos = s:plus(ray:times(stack)):plus(out:times(r))
-    local normal = out:times(1 - math.abs(normalBlend)):plus(axisZ:times(normalBlend))
+    local out = (axisX * math.cos(angle)) + (axisY * math.sin(angle))
+    local pos = (s+(ray*stack)) + (out*r)
+    local normal = out * (1 - math.abs(normalBlend)) + (axisZ * normalBlend)
     return CSG.Vertex(pos, normal)
   end
   for i = 0,(slices-1) do
@@ -365,84 +361,11 @@ function CSG.cylinder(options)
   return CSG.fromPolygons(polygons)
 end
 
--- # class Vector
-
--- Represents a 3D vector.
--- 
--- Example usage:
--- 
---     CSG.Vector(1, 2, 3)
---     CSG.Vector([1, 2, 3])
---     CSG.Vector({ x: 1, y: 2, z: 3 })
-
-CSG.Vector = class()
-function CSG.Vector:init(x, y, z)
-  if (z ~= nil) then
-    self.x = x
-    self.y = y
-    self.z = z
-  elseif (x.x ~= nil) then
-    self.x = x.x
-    self.y = x.y
-    self.z = x.z
-  else
-    self.x = x[1]
-    self.y = x[2]
-    self.z = x[3]
-  end
+function CSG.lerp(v1, v2, t)
+  return v1 + ((v2 - v1)*t)
 end
-
-function CSG.Vector:clone()
-  return CSG.Vector(self.x, self.y, self.z)
-end
-
-function CSG.Vector:negated()
-  return CSG.Vector(-self.x, -self.y, -self.z)
-end
-
-function CSG.Vector:plus(a)
-  return CSG.Vector(self.x + a.x, self.y + a.y, self.z + a.z)
-end
-
-function CSG.Vector:minus(a)
-  return CSG.Vector(self.x - a.x, self.y - a.y, self.z - a.z)
-end
-
-function CSG.Vector:times(a)
-  return CSG.Vector(self.x * a, self.y * a, self.z * a)
-end
-
-function CSG.Vector:dividedBy(a)
-  return CSG.Vector(self.x / a, self.y / a, self.z / a)
-end
-
-function CSG.Vector:dot(a)
-  return self.x * a.x + self.y * a.y + self.z * a.z
-end
-
-function CSG.Vector:lerp(a, t)
-  return self:plus(a:minus(self):times(t))
-end
-
-function CSG.Vector:length()
-  return math.sqrt(self:dot(self))
-end
-
-function CSG.Vector:unit()
-  return self:dividedBy(self:length())
-end
-
-function CSG.Vector:cross(a)
-  return CSG.Vector(
-    self.y * a.z - self.z * a.y,
-    self.z * a.x - self.x * a.z,
-    self.x * a.y - self.y * a.x
-  )
-end
-
 
 -- # class Vertex
-
 -- Represents a vertex of a polygon. Use your own vertex class instead of this
 -- one to provide additional features like texture coordinates and vertex
 -- colors. Custom vertex classes need to provide a `pos` property and `clone()`,
@@ -453,18 +376,18 @@ end
 
 CSG.Vertex = class()
 function CSG.Vertex:init(pos, normal)
-  self.pos = CSG.Vector(pos)
-  self.normal = CSG.Vector(normal)
+  self.pos = pos
+  self.normal = normal
 end
 
 function CSG.Vertex:clone()
-  return CSG.Vertex(self.pos:clone(), self.normal:clone())
+  return CSG.Vertex(self.pos*1, self.normal*1)
 end
 
 -- Invert all orientation-specific data (e.g. vertex normal). Called when the
 -- orientation of a polygon is flipped.
 function CSG.Vertex:flip()
-  self.normal = self.normal:negated()
+  self.normal = -self.normal
 end
 
 -- Create a vertex between self.vertex and `other` by linearly
@@ -472,8 +395,8 @@ end
 -- override self.to interpolate additional properties.
 function CSG.Vertex:interpolate(other, t)
   return CSG.Vertex(
-    self.pos:lerp(other.pos, t),
-    self.normal:lerp(other.normal, t)
+    CSG.lerp(self.pos, other.pos, t),
+    CSG.lerp(self.normal, other.normal, t)
   )
 end
 
@@ -492,17 +415,17 @@ end
 CSG.Plane.EPSILON = 1e-5
 
 function CSG.Plane.fromPoints(a, b, c)
-  local n = b:minus(a):cross(c:minus(a)):unit()
+  local n = (b-a):cross(c-a):normalize()
   return CSG.Plane(n, n:dot(a))
 end
 
 
 function CSG.Plane:clone()
-    return CSG.Plane(self.normal:clone(), self.w)
+    return CSG.Plane(self.normal*1, self.w)
 end
 
 function CSG.Plane:flip()
-    self.normal = self.normal:negated()
+    self.normal = -self.normal
     self.w = -self.w
 end
 
@@ -521,7 +444,6 @@ end
 
 function clearbit(x, p)
   return hasbit(x, p) and x - p or x
-        
 end
 
 function bitor(a, b) 
@@ -592,7 +514,7 @@ function CSG.Plane:splitPolygon(polygon, coplanarFront, coplanarBack, front, bac
           end
         end
         if (bitor(ti, tj) == SPANNING) then
-          local t = (self.w - self.normal:dot(vi.pos)) / self.normal:dot(vj.pos:minus(vi.pos))
+          local t = (self.w - self.normal:dot(vi.pos)) / self.normal:dot(vj.pos-vi.pos)
           local v = vi:interpolate(vj, t)
           table.insert(f, v)
           table.insert(b, v:clone())
@@ -722,12 +644,3 @@ function CSG.Node:build(polygons)
     self.back:build(back)
   end
 end
-
-
-
-
-
-
-
-
-
