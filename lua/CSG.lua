@@ -19,11 +19,10 @@ function table.copy(t)
 end
 
 function table.reverse(t)
-    local s,t2 = #t,{}
-    for i,v in ipairs(t) do
-        t2[s-i] = v
-    end
-    return t2
+  for i=1, math.floor(#t / 2) do
+    t[i], t[#t - i + 1] = t[#t - i + 1], t[i]
+  end
+  return t
 end
 
 -- Constructive Solid Geometry (CSG) is a modeling technique that uses Boolean
